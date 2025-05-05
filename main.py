@@ -1,58 +1,55 @@
-import requests
-from bs4 import BeautifulSoup
-import time
-import telegram
 import os
+import time
+import threading
+import requests
+from flask import Flask
+from bs4 import BeautifulSoup
+from telegram import Bot
+from telegram.error import TelegramError
 
-TESLA_URL = 'https://www.tesla.com/tr_TR/inventory/new/my?arrangeby=plh&zip=34025&range=0'
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+# Flask uygulaması başlatma
+app = Flask(__name__)
 
-TERIMLER = [
-    "model y all-wheel drive",
-    "long range all-wheel drive performance",
-    "long range d",
-    "long range rear-wheel drive",
-    "long range arkadan",
-    "long range all-wheel drive",
-    "long range arkadan çekiş",
-    "performance dört çeker",
-    "performance d"
-]
+# Telegram bot bilgilerinizi burada ayarlayın
+TELEGRAM_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+CHAT_ID = 'YOUR_CHAT_ID'
+bot = Bot(token=TELEGRAM_TOKEN)
 
-def send_telegram_message(message):
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
-
-def check_for_keywords():
+# Stok kontrolü yapan fonksiyon
+def check_stock():
+    url = "YOUR_PRODUCT_URL"
     headers = {
-        "User-Agent": "Mozilla/5.0"
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
     }
-    try:
-        response = requests.get(TESLA_URL, headers=headers)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-
-            # Tüm <div class="tds-text_color--10"> öğelerini ara
-            all_divs = soup.find_all('div', class_='tds-text_color--10')
-            for div in all_divs:
-                text = div.get_text(strip=True).lower()
-                for keyword in TERIMLER:
-                    if keyword.lower() in text:
-                        print(f"✓ Bulundu: {keyword}")
-                        send_telegram_message(f"🚗 Stokta bulundu: {keyword}")
-                        return True
-    except Exception as e:
-        print(f"Hata oluştu: {e}")
-    return False
-
-def background_worker():
+    
     while True:
-        print("Stok kontrol ediliyor...")
-        check_for_keywords()
+        try:
+            # Sayfayı al
+            response = requests.get(url, headers=headers)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+
+                # Sayfa içeriğinde fotoğraf var mı kontrol et
+                image_element = soup.find('img')  # Burada img etiketini kontrol ediyoruz
+                if image_element:
+                    message = "Stokta araç var!"
+                    bot.send_message(chat_id=CHAT_ID, text=message)
+                    print("Stokta araç var, Telegram'a bildirim gönderildi.")
+                else:
+                    print("Stokta araç yok.")
+            else:
+                print("Sayfaya erişim sağlanamadı, tekrar deneniyor...")
+        except Exception as e:
+            print(f"Bir hata oluştu: {e}")
+        
+        # 10 saniyede bir kontrol et
         time.sleep(10)
 
-background_worker()
+# Flask başlatma ve kontrol fonksiyonunu thread ile çalıştırma
 if __name__ == '__main__':
-    threading.Thread(target=background_worker).start()
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    # Telegram kontrolünü ayrı bir thread'de çalıştırma
+    threading.Thread(target=check_stock, daemon=True).start()
+
+    # Flask uygulamasını başlatma
+    port = int(os.environ.get('PORT', 8080))  # Render veya başka bir platform için port ayarları
+    app.run(host='0.0.0.0', port=port, debug=True, use_reloader=False)
