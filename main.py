@@ -1,17 +1,30 @@
 import requests
 from bs4 import BeautifulSoup
-import threading
 import time
-from flask import Flask
+import telegram
 import os
 
-app = Flask(__name__)
-
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 TESLA_URL = 'https://www.tesla.com/tr_TR/inventory/new/my?arrangeby=plh&zip=34025&range=0'
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-def check_for_performance_awd():
+TERIMLER = [
+    "model y all-wheel drive",
+    "long range all-wheel drive performance",
+    "long range d",
+    "long range rear-wheel drive",
+    "long range arkadan",
+    "long range all-wheel drive",
+    "long range arkadan çekiş",
+    "performance dört çeker",
+    "performance d"
+]
+
+def send_telegram_message(message):
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+
+def check_for_keywords():
     headers = {
         "User-Agent": "Mozilla/5.0"
     }
@@ -19,45 +32,27 @@ def check_for_performance_awd():
         response = requests.get(TESLA_URL, headers=headers)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
-            text = soup.get_text().lower()
-            if "performance dual motor" in text or \
-               "long range" in text or \
-               "Performance D" in text or \
-               "Long Range All-Wheel Drive Performance" in text or \
-               "Long Range D" in text or \
-               "Long Range Rear-Wheel Drive" in text or \
-               "Long Range All-Wheel Drive" in text or \
-               "Performance D" in text or \
-               "Model Y All-Wheel Drive" in text or \
-               "performance dual motor" in text:
-                return True
+
+            # Tüm <div class="tds-text_color--10"> öğelerini ara
+            all_divs = soup.find_all('div', class_='tds-text_color--10')
+            for div in all_divs:
+                text = div.get_text(strip=True).lower()
+                for keyword in TERIMLER:
+                    if keyword.lower() in text:
+                        print(f"✓ Bulundu: {keyword}")
+                        send_telegram_message(f"🚗 Stokta bulundu: {keyword}")
+                        return True
     except Exception as e:
         print(f"Hata oluştu: {e}")
     return False
 
-def send_telegram_message(message):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message
-    }
-    try:
-        requests.post(url, data=payload)
-    except Exception as e:
-        print(f"Telegram bildirimi gönderilemedi: {e}")
-
 def background_worker():
-    print("Tesla 'Performance Dört Çeker' kontrolü başlatıldı...")
     while True:
-        print("Kontrol ediliyor...")
-        if check_for_performance_awd():
-            send_telegram_message("🚗 Tesla Model Y 'Performance Dört Çeker' stokta! Kontrol et: " + TESLA_URL)
+        print("Stok kontrol ediliyor...")
+        check_for_keywords()
         time.sleep(10)
 
-@app.route('/')
-def index():
-    return "Tesla Performance AWD checker is running."
-
+background_worker()
 if __name__ == '__main__':
     threading.Thread(target=background_worker).start()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
