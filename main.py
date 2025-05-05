@@ -22,6 +22,13 @@ def check_for_performance_awd():
             text = soup.get_text().lower()
             if "performance dual motor" in text or \
                "long range" in text or \
+               "Performance D" in text or \
+               "Long Range All-Wheel Drive Performance" in text or \
+               "Long Range D" in text or \
+               "Long Range Rear-Wheel Drive" in text or \
+               "Long Range All-Wheel Drive" in text or \
+               "Performance D" in text or \
+               "Model Y All-Wheel Drive" in text or \
                "performance dual motor" in text:
                 return True
     except Exception as e:
