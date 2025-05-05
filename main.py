@@ -20,7 +20,7 @@ def check_for_performance_awd():
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             text = soup.get_text().lower()
-            if "performance dört çeker" in text:
+            if "performance dual motor" in text:
                 return True
     except Exception as e:
         print(f"Hata oluştu: {e}")
